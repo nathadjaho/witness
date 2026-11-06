@@ -159,6 +159,7 @@ function addBlocked(text, reason) {
 
 function onEvent(e) {
   const d = e.data;
+  if (d && d.error && /_finished$/.test(e.kind)) { addEv('bad', 'Run failed', d.error); done(); return; }
   $('ledger').textContent = 'events: ' + (e.seq + 1) + ' · head ' + short(e.hash) + '…';
   switch (e.kind) {
     case 'run_started': addEv('acc', 'Run started · ' + d.companies.length + ' companies', 'model ' + d.model + ' · L3 strip ' + (d.strip_hidden ? 'on' : 'OFF')); break;
@@ -223,6 +224,7 @@ async function loadActions() {
   $('actions').replaceChildren(...(list.length ? list.map(a => h('div', {class: 'action'},
     h('div', {}, h('b', {}, a.kind), ' · ', a.payload.company, ' · score ', a.payload.score),
     h('div', {class: 'mute'}, 'owner ' + a.payload.owner), h('div', {class: 'quote'}, a.payload.notes),
+    ...(a.payload.risk_flags || []).map(f => h('div', {class: 'excerpt'}, 'Risk: ' + f + ' — review before approving')),
     h('div', {class: 'sha'}, a.payload.evidence.length + ' receipts attached'),
     h('div', {class: 'row'}, h('button', {onclick: () => decide(a.id, true)}, 'Approve'), h('button', {class: 'ghost', onclick: () => decide(a.id, false)}, 'Reject'))))
     : ['Nothing pending.']));

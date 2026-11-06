@@ -48,6 +48,23 @@ class EvalRequest(BaseModel):
     n: int = Field(10, ge=1, le=50)
 
 
+def _guarded(rid: str, coro_fn, finish_kind: str):
+    """Run a background job; if it crashes, record the error so the run never hangs as 'running'."""
+    async def go():
+        try:
+            res = await coro_fn()
+            status = "done"
+        except Exception as exc:  # noqa: BLE001
+            import traceback
+            res = {"error": f"{type(exc).__name__}: {exc}"[:500], "trace": traceback.format_exc()[-1500:]}
+            ledger.append(rid, finish_kind, {"error": res["error"], "contained": 0, "total": 0,
+                                             "results": [], "ledger": ledger.verify(rid)})
+            status = "error"
+        ledger.db().execute("UPDATE runs SET status=?, result=? WHERE id=?", (status, json.dumps(res), rid))
+        ledger.db().commit()
+    return go()
+
+
 def _busy_guard() -> None:
     # Public demo URL: cap concurrency so strangers can't turn the VM into a crawler.
     running = sum(1 for t in TASKS.values() if not t.done())
@@ -73,7 +90,7 @@ def _validate_url(u: str) -> None:
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "llm": "offline-fallback" if config.MOCK_LLM else config.PLANNER_MODEL,
+    return {"ok": True, "llm": "offline-fallback" if config.MOCK_LLM else (config.PLANNER_MODEL or "provider default (PLANNER_MODEL unset)"),
             "vision": config.VISION_MODEL or None, "sandbox": sandbox.describe_flags()}
 
 
@@ -83,31 +100,21 @@ async def create_run(req: RunRequest):
         _validate_url(c.url)
     body = req.model_dump()
     rid = _new_run("research", body)
-    TASKS[rid] = asyncio.create_task(agent.research_run(rid, body))
+    TASKS[rid] = asyncio.create_task(_guarded(rid, lambda: agent.research_run(rid, body), "run_finished"))
     return {"run_id": rid}
 
 
 @app.post("/api/lab")
 async def create_lab(req: LabRequest):
     rid = _new_run("lab", req.model_dump())
-
-    async def go():
-        s = await attacks.run_lab(rid, req.only)
-        ledger.db().execute("UPDATE runs SET status='done', result=? WHERE id=?", (json.dumps(s), rid))
-        ledger.db().commit()
-    TASKS[rid] = asyncio.create_task(go())
+    TASKS[rid] = asyncio.create_task(_guarded(rid, lambda: attacks.run_lab(rid, req.only), "lab_finished"))
     return {"run_id": rid}
 
 
 @app.post("/api/eval")
 async def create_eval(req: EvalRequest):
     rid = _new_run("eval", req.model_dump())
-
-    async def go():
-        s = await evals.run_eval(rid, req.n)
-        ledger.db().execute("UPDATE runs SET status='done', result=? WHERE id=?", (json.dumps(s), rid))
-        ledger.db().commit()
-    TASKS[rid] = asyncio.create_task(go())
+    TASKS[rid] = asyncio.create_task(_guarded(rid, lambda: evals.run_eval(rid, req.n), "eval_finished"))
     return {"run_id": rid}
 
 

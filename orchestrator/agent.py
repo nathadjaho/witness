@@ -218,9 +218,12 @@ def verify_claim(claim: dict, pages_by_id: dict) -> dict:
 def policy_gate(action: dict, company_domain: str) -> tuple[bool, str]:
     if action.get("type") not in ALLOWED_ACTIONS:
         return False, f"action type '{action.get('type')}' is not in the allowed set"
-    owner = str(action.get("owner", ""))
-    if owner and not owner.endswith("@" + TEAM_EMAIL_DOMAIN):
+    owner = str(action.get("owner", "")).strip()
+    # An owner is either a team address or an internal role name (e.g. "sales-ops").
+    if owner and "@" in owner and not owner.lower().endswith("@" + TEAM_EMAIL_DOMAIN):
         return False, f"owner '{owner}' is outside the team domain"
+    if owner and "@" not in owner and not re.fullmatch(r"[A-Za-z][\w .-]{0,40}", owner):
+        return False, f"owner '{owner}' is not a team address or role"
     blob = f"{owner} {action.get('notes', '')}"
     for e in EMAIL_RE.finditer(blob):
         d = e.group(0).split("@", 1)[1].lower()
@@ -235,7 +238,7 @@ def policy_gate(action: dict, company_domain: str) -> tuple[bool, str]:
 
 
 # ------------------------------------------------------------------ run
-async def research_run(run_id: str, req: dict) -> None:
+async def research_run(run_id: str, req: dict) -> list:
     emit = lambda kind, data: ledger.append(run_id, kind, data)  # noqa: E731
     criteria = [c.strip() for c in req.get("criteria", []) if c.strip()][:8]
     strip = bool(req.get("strip_hidden", True))
@@ -254,6 +257,7 @@ async def research_run(run_id: str, req: dict) -> None:
                         (json.dumps(results), run_id))
     ledger.db().commit()
     emit("run_finished", {"results": results, "ledger": ledger.verify(run_id)})
+    return results
 
 
 async def research_company(run_id, comp, criteria, strip, emit) -> dict:
@@ -325,10 +329,8 @@ async def research_company(run_id, comp, criteria, strip, emit) -> dict:
     if injections:
         risk_flags.append("site hides instructions aimed at AI agents (" + ", ".join(tactics_of(injections)) + ")")
     if score >= 50:
-        note = f"Checked by Witness: {met}/{len(criteria)} criteria verified."
-        if risk_flags:
-            note += " RISK: " + "; ".join(risk_flags) + ". Review before approving."
-        proposals.append({"type": "push_to_crm", "owner": f"sales@{TEAM_EMAIL_DOMAIN}", "notes": note,
+        proposals.append({"type": "push_to_crm", "owner": f"sales@{TEAM_EMAIL_DOMAIN}",
+                          "notes": f"Checked by Witness: {met}/{len(criteria)} criteria verified.",
                           "origin": "system"})
     queued = []
     for a in proposals:
@@ -337,8 +339,9 @@ async def research_company(run_id, comp, criteria, strip, emit) -> dict:
             emit("action_blocked", {"company": name, "action": a, "reason": reason, "gate": "L5 policy"})
             continue
         aid = secrets.token_hex(6)
+        # Risk flags travel beside the action, not inside the text the gate inspects.
         payload = {"company": name, "domain": dom, "score": score, "owner": a.get("owner"),
-                   "notes": a.get("notes", ""), "type": a["type"],
+                   "notes": a.get("notes", ""), "type": a["type"], "risk_flags": risk_flags,
                    "evidence": [c for c in claims if c["status"] == "verified"]}
         ledger.db().execute("INSERT INTO actions VALUES(?,?,?,?,?,?,?,?)",
                             (aid, run_id, time.time(), a["type"], json.dumps(payload), "pending", None, None))

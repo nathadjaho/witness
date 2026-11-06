@@ -1,6 +1,10 @@
 # Control plane. Holds the inference key and the docker socket; never runs page code.
+# The docker CLI is a static Go binary: copy it from the official image rather than
+# relying on distro packages (Debian's docker.io no longer ships the CLI).
+FROM docker:27-cli AS dockercli
+
 FROM python:3.12-slim
-RUN apt-get update && apt-get install -y --no-install-recommends docker.io && rm -rf /var/lib/apt/lists/*
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
