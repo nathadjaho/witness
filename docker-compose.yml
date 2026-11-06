@@ -1,0 +1,71 @@
+# Receipts on a single Vultr Cloud Compute VM.
+#
+#   internet ──► caddy ──► orchestrator ──(docker.sock)──► sandbox containers (spawned per page)
+#                              │                                   │
+#                              │ admin API + token                 │ only route out
+#                              ▼                                   ▼
+#                         egress-proxy ◄────────── sandbox network (internal, no gateway, no DNS)
+#                              │
+#                              ▼
+#                         internet / trap-site (allowlisted per job)
+name: receipts
+
+services:
+  orchestrator:
+    build: ./orchestrator
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ARTIFACTS_DIR: ${DATA_DIR:-/opt/receipts/data}/artifacts
+      HOST_ARTIFACTS_DIR: ${DATA_DIR:-/opt/receipts/data}/artifacts
+      DB_PATH: ${DATA_DIR:-/opt/receipts/data}/receipts.db
+      PROXY_ADMIN_URL: http://egress-proxy:9090
+      PROXY_URL_FOR_SANDBOX: http://172.30.0.2:3128
+      SANDBOX_NETWORK: receipts_sandbox
+      TRAP_SITE: http://trap-site:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DATA_DIR:-/opt/receipts/data}:${DATA_DIR:-/opt/receipts/data}
+    networks: [control, public]
+    depends_on: [egress-proxy, trap-site]
+
+  egress-proxy:
+    build: ./egress-proxy
+    restart: unless-stopped
+    environment:
+      ADMIN_TOKEN: ${PROXY_ADMIN_TOKEN}
+      ALLOW_PRIVATE_HOSTS: trap-site
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks:
+      sandbox: {ipv4_address: 172.30.0.2}
+      control: {}
+      egress: {}
+
+  trap-site:
+    build: ./trap-site
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    networks: [egress]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    command: caddy reverse-proxy --from ${SITE_ADDRESS:-:80} --to orchestrator:8000
+    volumes: [caddy_data:/data]
+    networks: [public]
+
+networks:
+  sandbox:
+    name: receipts_sandbox
+    internal: true
+    ipam: {config: [{subnet: 172.30.0.0/24}]}
+  control: {internal: true}
+  egress: {}
+  public: {}
+
+volumes:
+  caddy_data: {}

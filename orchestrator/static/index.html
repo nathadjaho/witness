@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Receipts — research agents that can't be turned against you</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'">
+<style>
+:root{--bg:#0d1117;--panel:#151b23;--line:#262f3b;--text:#e6edf3;--mute:#8b98a8;--ok:#3fb950;--bad:#f85149;--warn:#d29922;--acc:#58a6ff;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0}h1 span{color:var(--mute);font-weight:400}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:0 0 12px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}.chip{border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;color:var(--mute)}
+.chip.ok{color:var(--ok);border-color:#23462c}.chip.bad{color:var(--bad);border-color:#5a2420}.chip.warn{color:var(--warn);border-color:#5b4513}
+main{display:grid;grid-template-columns:360px 1fr 340px;gap:16px;padding:16px 24px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+textarea,input[type=text]{width:100%;background:#0b0f14;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px var(--mono)}
+label{display:block;margin:10px 0 4px;color:var(--mute);font-size:12px}
+button{background:var(--acc);color:#04111f;border:0;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}button.red{background:var(--bad);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:8px;align-items:center;margin-top:12px}
+.layers{margin-top:16px;font-size:12px;color:var(--mute)}.layers div{padding:3px 0;border-bottom:1px dashed var(--line)}.layers b{color:var(--text)}
+#timeline{max-height:420px;overflow:auto;font-size:13px}
+.ev{display:grid;grid-template-columns:18px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.ev .dot{width:10px;height:10px;border-radius:50%;margin-top:5px;background:var(--mute)}
+.ev.ok .dot{background:var(--ok)}.ev.bad .dot{background:var(--bad)}.ev.warn .dot{background:var(--warn)}.ev.acc .dot{background:var(--acc)}
+.ev small{color:var(--mute);font-family:var(--mono)}
+.excerpt{font-family:var(--mono);font-size:12px;background:#2a1215;border-left:3px solid var(--bad);padding:6px 8px;margin-top:4px;white-space:pre-wrap;word-break:break-word}
+.company{margin-top:16px}.score{font-size:28px;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:6px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mute);font-weight:500}
+.badge{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid}
+.b-verified{color:var(--ok);border-color:#23462c}.b-unsupported,.b-rejected_hidden{color:var(--bad);border-color:#5a2420}.b-no_evidence{color:var(--mute);border-color:var(--line)}
+.quote{font-family:var(--mono);font-size:12px;color:#c9d1d9}
+.thumb{width:120px;border:1px solid var(--line);border-radius:6px;display:block}
+.sha{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.action{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px;font-size:13px}
+.lab{display:grid;grid-template-columns:1fr;gap:6px}.lab .t{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px}
+.big{font-size:36px;font-weight:800}
+.mute{color:var(--mute)}.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>Receipts <span>· research agents that can't be turned against you</span></h1>
+  <div class="chips" id="status"></div>
+</header>
+<main>
+  <section>
+    <div class="panel">
+      <h2>New research</h2>
+      <label>Companies (one per line: URL | name)</label>
+      <textarea id="companies" rows="4">http://trap-site:8080/acme/index.html | Acme Ledger</textarea>
+      <label>Qualification criteria (one per line)</label>
+      <textarea id="criteria" rows="5">Sells accounts-payable software to finance teams
+Has a public plan under $3,000 per month
+Is hiring Account Executives
+Raised a Series B or later</textarea>
+      <label><input type="checkbox" id="strip" checked> L3 · strip hidden text before the model reads it</label>
+      <div class="row"><button id="run">Run research</button><button class="ghost" id="lab">Run attack lab</button></div>
+      <div class="layers">
+        <div><b>L1 sandbox</b> · one throwaway container per page, no secrets</div>
+        <div><b>L2 egress</b> · target domain only, via allowlist proxy</div>
+        <div><b>L3 strip</b> · hidden text never reaches the model</div>
+        <div><b>L4 spotlight</b> · page text passed as untrusted data</div>
+        <div><b>L5 policy</b> · closed action set, no external recipients</div>
+        <div><b>L6 grounding</b> · every claim must quote the visible page</div>
+        <div><b>L7 human</b> · nothing leaves without approval</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>Sandbox in use</h2>
+      <div id="flags" class="sha"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="panel">
+      <h2>Live run <span id="runid" class="sha"></span></h2>
+      <div id="timeline" class="mute">Start a run to watch every sandbox being created, attacked and destroyed.</div>
+    </div>
+    <div id="results"></div>
+    <div class="panel hidden" id="labpanel" style="margin-top:16px">
+      <h2>Attack lab</h2>
+      <div class="big" id="labscore">–</div><div class="mute">attacks contained</div>
+      <div class="lab" id="labgrid" style="margin-top:12px"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="panel">
+      <h2>Waiting for your approval</h2>
+      <div id="actions" class="mute">Nothing pending.</div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>Blocked by the system</h2>
+      <div id="blocked" class="mute">Nothing blocked yet.</div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>Tamper-evident ledger</h2>
+      <div id="ledger" class="sha">–</div>
+      <div class="row"><button class="ghost" id="verify" disabled>Verify hash chain</button></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>CRM (approved only)</h2>
+      <div id="crm" class="mute">Empty.</div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+// Every string from a run may come from a hostile page: build DOM with textContent only.
+function h(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined) e.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k !== null && k !== undefined) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return e;
+}
+const short = s => (s || '').slice(0, 12);
+let currentRun = null, blockedCount = 0;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {headers: {'Content-Type': 'application/json'}, ...opts});
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status);
+  return r.json();
+}
+
+async function loadStatus() {
+  const s = await api('/api/health');
+  $('status').replaceChildren(
+    h('span', {class: 'chip ' + (s.llm === 'offline-fallback' ? 'warn' : 'ok')}, 'model: ' + s.llm),
+    h('span', {class: 'chip'}, 'vision: ' + (s.vision || 'off')),
+    h('span', {class: 'chip ok'}, 'runtime: ' + s.sandbox.runtime));
+  $('flags').replaceChildren(...Object.entries(s.sandbox).map(([k, v]) => h('div', {}, k + ': ' + v)));
+}
+
+function addEv(cls, title, detail, extra) {
+  if ($('timeline').classList.contains('mute')) { $('timeline').classList.remove('mute'); $('timeline').replaceChildren(); }
+  const node = h('div', {class: 'ev ' + cls}, h('div', {class: 'dot'}), h('div', {}, h('div', {}, title), detail ? h('small', {}, detail) : null, extra || null));
+  $('timeline').append(node); $('timeline').scrollTop = 1e9;
+}
+
+function addBlocked(text, reason) {
+  if (!blockedCount++) $('blocked').replaceChildren();
+  $('blocked').classList.remove('mute');
+  $('blocked').append(h('div', {class: 'action'}, h('div', {}, text), h('small', {class: 'mute'}, reason)));
+}
+
+function onEvent(e) {
+  const d = e.data;
+  $('ledger').textContent = 'events: ' + (e.seq + 1) + ' · head ' + short(e.hash) + '…';
+  switch (e.kind) {
+    case 'run_started': addEv('acc', 'Run started · ' + d.companies.length + ' companies', 'model ' + d.model + ' · L3 strip ' + (d.strip_hidden ? 'on' : 'OFF')); break;
+    case 'company_started': addEv('acc', d.company + ' · egress allowlist ' + d.egress_allowlist.join(', ')); break;
+    case 'sandbox_started': addEv('', 'Sandbox created → ' + d.url, 'step ' + d.step); break;
+    case 'sandbox_finished': {
+      const c = d.containment, b = c.egress_blocked.length;
+      addEv(c.destroyed ? 'ok' : 'bad', (c.destroyed ? 'Sandbox destroyed ✓ ' : 'Sandbox NOT destroyed ') + '· ' + c.wall_s + 's' + (c.killed_by_watchdog ? ' · killed by watchdog' : ''),
+            'egress allowed ' + c.egress_allowed.length + ' · blocked ' + b + ' · screenshot sha256 ' + short(d.screenshot_sha256) + ' · hidden segments ' + d.hidden_segments + ' (stripped ' + d.stripped_before_model + ')');
+      for (const x of c.egress_blocked) addBlocked('Egress → ' + x.host + ':' + x.port, 'L2 proxy · ' + x.reason);
+      break; }
+    case 'injection_detected':
+      addEv('bad', '⚠ Prompt injection on ' + d.url, d.hits.length + ' patterns · ' + d.handling,
+            h('div', {}, ...d.hits.slice(0, 3).map(x => h('div', {class: 'excerpt'}, '[' + x.where + ' · ' + x.pattern + '] ' + x.excerpt)))); break;
+    case 'plan': addEv('acc', 'Planner chose ' + d.visit.length + ' of ' + d.candidates + ' links', d.why); break;
+    case 'claims': {
+      const v = d.claims.filter(c => c.status === 'verified').length;
+      addEv(v ? 'ok' : 'warn', d.company + ' · ' + v + '/' + d.claims.length + ' claims backed by a receipt');
+      for (const c of d.claims) if (c.status === 'unsupported' || c.status === 'rejected_hidden') addBlocked('Claim dropped: ' + c.criterion, 'L6 grounding · ' + c.reason);
+      break; }
+    case 'action_blocked': addEv('bad', 'Action refused: ' + (d.action.type || '?'), d.reason); addBlocked('Action ' + (d.action.type || '?') + ' (owner ' + (d.action.owner || '–') + ')', d.gate + ' · ' + d.reason); break;
+    case 'action_pending_approval': addEv('warn', 'Waiting for human approval: ' + d.action.type + ' · ' + d.company); loadActions(); break;
+    case 'company_finished': addEv('ok', d.company + ' · score ' + d.score); break;
+    case 'run_finished': addEv('ok', 'Run finished · ledger ' + (d.ledger.ok ? 'intact ✓' : 'BROKEN')); renderResults(d.results); done(); break;
+    case 'lab_started': $('labpanel').classList.remove('hidden'); $('labgrid').replaceChildren(); $('labscore').textContent = '…'; addEv('acc', 'Attack lab · ' + d.attacks.length + ' hostile pages'); break;
+    case 'attack_started': addEv('', 'Attack: ' + d.title, d.url); break;
+    case 'attack_finished':
+      addEv(d.contained ? 'ok' : 'bad', (d.contained ? 'Contained ✓ ' : 'NOT contained ✗ ') + d.title, d.evidence);
+      $('labgrid').append(h('div', {class: 't'}, h('span', {}, d.title), h('span', {class: 'badge ' + (d.contained ? 'b-verified' : 'b-unsupported')}, d.contained ? 'contained' : 'breach')));
+      for (const x of d.containment.egress_blocked) addBlocked('Egress → ' + x.host + ':' + x.port, 'L2 proxy · ' + x.reason);
+      break;
+    case 'lab_finished': $('labscore').textContent = d.contained + '/' + d.total; addEv(d.contained === d.total ? 'ok' : 'bad', 'Attack lab: ' + d.contained + '/' + d.total + ' contained'); done(); break;
+    case 'action_approved': case 'action_rejected': addEv('acc', e.kind.replace('_', ' ') + ' · ' + d.company); break;
+    case 'company_error': addEv('bad', 'Error on ' + (d.company.url || ''), d.error); break;
+  }
+}
+
+function renderResults(results) {
+  $('results').replaceChildren(...results.map(r => h('div', {class: 'panel company'},
+    h('div', {class: 'row', style: 'justify-content:space-between;margin:0'},
+      h('div', {}, h('h2', {style: 'margin:0'}, r.company), h('div', {class: 'sha'}, r.url)),
+      h('div', {}, h('span', {class: 'score'}, r.score), h('span', {class: 'mute'}, ' /100 · ' + r.verified + '/' + r.criteria + ' verified'))),
+    r.injections ? h('div', {class: 'chip bad', style: 'display:inline-block;margin:8px 0'}, r.injections + ' injection attempts neutralised') : null,
+    h('table', {}, h('tr', {}, h('th', {}, 'Criterion'), h('th', {}, 'Status'), h('th', {}, 'Receipt')),
+      ...r.claims.map(c => h('tr', {},
+        h('td', {}, c.criterion, c.met === false ? h('div', {class: 'mute'}, '(not met)') : null),
+        h('td', {}, h('span', {class: 'badge b-' + c.status}, c.status.replace('_', ' ')), c.vision && c.vision.visible !== undefined ? h('div', {class: 'sha'}, 'vision: ' + c.vision.visible) : null),
+        h('td', {}, c.quote ? h('div', {class: 'quote'}, '“' + c.quote + '”') : h('span', {class: 'mute'}, c.reason || '—'),
+          c.screenshot ? h('a', {href: c.screenshot, target: '_blank', rel: 'noopener'}, h('img', {class: 'thumb', src: c.screenshot, alt: 'evidence screenshot'})) : null,
+          c.screenshot_sha256 ? h('div', {class: 'sha'}, 'sha256 ' + short(c.screenshot_sha256) + '… · ' + (c.source_url || '')) : null)))))));
+}
+
+async function loadActions() {
+  const list = await api('/api/actions');
+  $('actions').classList.toggle('mute', !list.length);
+  $('actions').replaceChildren(...(list.length ? list.map(a => h('div', {class: 'action'},
+    h('div', {}, h('b', {}, a.kind), ' · ', a.payload.company, ' · score ', a.payload.score),
+    h('div', {class: 'mute'}, 'owner ' + a.payload.owner), h('div', {class: 'quote'}, a.payload.notes),
+    h('div', {class: 'sha'}, a.payload.evidence.length + ' receipts attached'),
+    h('div', {class: 'row'}, h('button', {onclick: () => decide(a.id, true)}, 'Approve'), h('button', {class: 'ghost', onclick: () => decide(a.id, false)}, 'Reject'))))
+    : ['Nothing pending.']));
+}
+async function decide(id, approve) { await api('/api/actions/' + id, {method: 'POST', body: JSON.stringify({approve})}); loadActions(); loadCRM(); }
+async function loadCRM() {
+  const rows = await api('/api/crm');
+  $('crm').classList.toggle('mute', !rows.length);
+  $('crm').replaceChildren(...(rows.length ? rows.map(r => h('div', {class: 'action'}, h('b', {}, r.company), ' · ' + r.score + '/100 · ' + r.owner, h('div', {class: 'sha'}, r.evidence.length + ' receipts'))) : ['Empty.']));
+}
+
+function start(rid) {
+  currentRun = rid; blockedCount = 0; $('runid').textContent = rid; $('verify').disabled = false;
+  $('timeline').classList.add('mute'); $('timeline').textContent = 'Starting…'; $('results').replaceChildren();
+  $('blocked').classList.add('mute'); $('blocked').textContent = 'Nothing blocked yet.';
+  $('run').disabled = $('lab').disabled = true;
+  const es = new EventSource('/api/runs/' + rid + '/stream');
+  es.onmessage = m => onEvent(JSON.parse(m.data));
+  es.onerror = () => es.close();
+}
+function done() { $('run').disabled = $('lab').disabled = false; loadActions(); loadCRM(); }
+
+$('run').onclick = async () => {
+  const companies = $('companies').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [url, name] = l.split('|').map(s => s.trim()); return {url, name: name || null}; });
+  const criteria = $('criteria').value.split('\n').map(s => s.trim()).filter(Boolean);
+  try { const r = await api('/api/runs', {method: 'POST', body: JSON.stringify({companies, criteria, strip_hidden: $('strip').checked})}); start(r.run_id); }
+  catch (e) { alert(e.message); }
+};
+$('lab').onclick = async () => { try { const r = await api('/api/lab', {method: 'POST', body: '{}'}); start(r.run_id); } catch (e) { alert(e.message); } };
+$('verify').onclick = async () => { const v = await api('/api/runs/' + currentRun + '/verify'); $('ledger').textContent = (v.ok ? '✓ chain intact · ' : '✗ chain broken at ' + v.broken_at + ' · ') + v.events + ' events' + (v.head ? ' · head ' + short(v.head) + '…' : ''); };
+
+loadStatus(); loadActions(); loadCRM();
+</script>
+</body>
+</html>
