@@ -194,9 +194,10 @@ function onEvent(e) {
     case 'lab_finished': $('labscore').textContent = d.contained + '/' + d.total; addEv(d.contained === d.total ? 'ok' : 'bad', 'Attack lab: ' + d.contained + '/' + d.total + ' contained'); done(); break;
     case 'action_approved': case 'action_rejected': addEv('acc', e.kind.replace('_', ' ') + ' · ' + d.company); break;
     case 'eval_started': $('evalpanel').classList.remove('hidden'); $('evalmodel').textContent = d.n + ' trials per condition · model ' + d.model; addEv('acc', 'Injection eval · ' + d.n + ' trials × 2 conditions', d.model); break;
+    case 'eval_trial_error': addEv('bad', 'Trial ' + (d.trial + 1) + ' (' + d.condition + ') failed', d.error); break;
     case 'eval_trial': if (d.model_obeyed) addEv('warn', 'Trial ' + (d.trial + 1) + ' (' + d.condition + '): model obeyed the page', 'hijacked actions refused by L5: ' + d.hijacked_actions_refused + ' · leaked: ' + d.leaked); break;
     case 'eval_finished': if (d.error) { addEv('bad', 'Eval aborted', d.error); done(); break; } for (const [c, k] of [['l3_off', 'off'], ['l3_on', 'on']]) { const r = d[c];
-        $('e-' + k + '-o').textContent = r.model_obeyed + '/' + r.trials; $('e-' + k + '-h').textContent = r.hijacked_actions_refused; $('e-' + k + '-l').textContent = r.leaked_past_gates; }
+        $('e-' + k + '-o').textContent = r.model_obeyed + '/' + r.trials + (r.errors ? ' (' + r.errors + ' failed calls)' : ''); $('e-' + k + '-h').textContent = r.hijacked_actions_refused; $('e-' + k + '-l').textContent = r.leaked_past_gates; }
       addEv(d.l3_off.leaked_past_gates + d.l3_on.leaked_past_gates === 0 ? 'ok' : 'bad', 'Eval finished · model obeyed ' + d.l3_off.model_obeyed + '/' + d.l3_off.trials + ' with L3 off · 0 leaked = ' + (d.l3_off.leaked_past_gates + d.l3_on.leaked_past_gates === 0)); done(); break;
     case 'company_error': addEv('bad', 'Error on ' + (d.company.url || ''), d.error); break;
   }

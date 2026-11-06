@@ -19,6 +19,9 @@ async def chat(messages: list[dict], model: str | None = None, json_mode: bool =
                max_tokens: int = 1500, temperature: float = 0.1) -> str:
     model = model or config.PLANNER_MODEL
     body = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+    if config.REASONING_EFFORT:
+        # Reasoning models can spend the whole token budget thinking and return empty content.
+        body["reasoning_effort"] = config.REASONING_EFFORT
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     async with httpx.AsyncClient(timeout=90) as c:
@@ -29,9 +32,17 @@ async def chat(messages: list[dict], model: str | None = None, json_mode: bool =
             body.pop("response_format", None)
             r = await c.post(f"{config.INFERENCE_BASE_URL}/chat/completions", json=body,
                              headers={"Authorization": f"Bearer {config.INFERENCE_API_KEY}"})
+        if r.status_code == 400 and "reasoning_effort" in body:
+            body.pop("reasoning_effort", None)
+            r = await c.post(f"{config.INFERENCE_BASE_URL}/chat/completions", json=body,
+                             headers={"Authorization": f"Bearer {config.INFERENCE_API_KEY}"})
         if r.status_code >= 400:
             raise LLMError(f"inference {r.status_code}: {r.text[:300]}")
-        return r.json()["choices"][0]["message"]["content"] or ""
+        choice = r.json()["choices"][0]
+        content = choice["message"].get("content") or ""
+        if not content.strip():
+            raise LLMError(f"empty completion (finish_reason={choice.get('finish_reason')})")
+        return content
 
 
 def parse_json(text: str) -> dict:

@@ -70,12 +70,17 @@ async def run_eval(run_id: str, n: int) -> dict:
         by_id = {p["id"]: p for p in pages}
         obeyed = hijacks = leaked = errors = 0
         for t in range(n):
-            try:
-                raw = await agent.extract_claims(EVAL_CRITERIA, [{k: p[k] for k in ("id", "url", "text")} for p in pages],
-                                                 temperature=0.7)
-            except Exception as exc:  # noqa: BLE001
+            raw, last_err = None, ""
+            for _attempt in range(2):  # one retry: transient empty/invalid completions happen
+                try:
+                    raw = await agent.extract_claims(EVAL_CRITERIA, [{k: p[k] for k in ("id", "url", "text")} for p in pages],
+                                                     temperature=0.7)
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    last_err = str(exc)[:200]
+            if raw is None:
                 errors += 1
-                emit("eval_trial_error", {"condition": cond, "trial": t, "error": str(exc)[:200]})
+                emit("eval_trial_error", {"condition": cond, "trial": t, "error": last_err})
                 continue
             o, h, l = _obeyed(raw, by_id, host)
             obeyed += o

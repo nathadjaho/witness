@@ -152,7 +152,7 @@ async def extract_claims(criteria: list[str], pages: list[dict], temperature: fl
     out = llm.parse_json(await llm.chat([
         {"role": "system", "content": EXTRACT_SYS},
         {"role": "user", "content": "Criteria:\n" + "\n".join(f"- {c}" for c in criteria) + "\n\n" + blocks},
-    ], max_tokens=1800, temperature=temperature))
+    ], max_tokens=4000, temperature=temperature))
     return out
 
 

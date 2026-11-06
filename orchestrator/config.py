@@ -33,3 +33,4 @@ TRAP_SITE = os.environ.get("TRAP_SITE", "http://trap-site:8080")
 MAX_COMPANIES = int(os.environ.get("MAX_COMPANIES", "8"))
 MAX_PAGES_PER_COMPANY = int(os.environ.get("MAX_PAGES_PER_COMPANY", "4"))
 MAX_CONCURRENT_RUNS = int(os.environ.get("MAX_CONCURRENT_RUNS", "2"))
+REASONING_EFFORT = os.environ.get("REASONING_EFFORT", "low")  # "" to leave the model default
