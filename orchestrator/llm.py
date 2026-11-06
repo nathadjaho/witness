@@ -16,9 +16,9 @@ class LLMError(RuntimeError):
 
 
 async def chat(messages: list[dict], model: str | None = None, json_mode: bool = True,
-               max_tokens: int = 1500) -> str:
+               max_tokens: int = 1500, temperature: float = 0.1) -> str:
     model = model or config.PLANNER_MODEL
-    body = {"model": model, "messages": messages, "temperature": 0.1, "max_tokens": max_tokens}
+    body = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     async with httpx.AsyncClient(timeout=90) as c:

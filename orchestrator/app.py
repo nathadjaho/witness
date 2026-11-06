@@ -1,4 +1,4 @@
-"""Receipts control plane — runs on the Vultr VM. Holds the keys, never runs page code."""
+"""Witness control plane — runs on the Vultr VM. Holds the keys, never runs page code."""
 from __future__ import annotations
 
 import asyncio
@@ -15,10 +15,11 @@ from pydantic import BaseModel, Field
 import agent
 import attacks
 import config
+import evals
 import ledger
 import sandbox
 
-app = FastAPI(title="Receipts", version="0.1")
+app = FastAPI(title="Witness", version="0.1")
 STATIC = Path(__file__).parent / "static"
 TASKS: dict[str, asyncio.Task] = {}
 
@@ -41,6 +42,10 @@ class Decision(BaseModel):
 
 class LabRequest(BaseModel):
     only: list[str] | None = None
+
+
+class EvalRequest(BaseModel):
+    n: int = Field(10, ge=1, le=50)
 
 
 def _busy_guard() -> None:
@@ -94,6 +99,18 @@ async def create_lab(req: LabRequest):
     return {"run_id": rid}
 
 
+@app.post("/api/eval")
+async def create_eval(req: EvalRequest):
+    rid = _new_run("eval", req.model_dump())
+
+    async def go():
+        s = await evals.run_eval(rid, req.n)
+        ledger.db().execute("UPDATE runs SET status='done', result=? WHERE id=?", (json.dumps(s), rid))
+        ledger.db().commit()
+    TASKS[rid] = asyncio.create_task(go())
+    return {"run_id": rid}
+
+
 @app.get("/api/runs")
 def list_runs():
     rows = ledger.db().execute("SELECT id, created, status, request FROM runs ORDER BY created DESC LIMIT 30").fetchall()
@@ -118,7 +135,7 @@ async def stream(rid: str):
             for e in evs:
                 last = e["seq"]
                 yield f"data: {json.dumps(e)}\n\n"
-                if e["kind"] in ("run_finished", "lab_finished"):
+                if e["kind"] in ("run_finished", "lab_finished", "eval_finished"):
                     return
             await asyncio.sleep(0.5)
             yield ": keepalive\n\n"

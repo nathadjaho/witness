@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-shot setup for a fresh Vultr Cloud Compute VM (Ubuntu 22.04/24.04, 2 vCPU / 4 GB recommended).
-#   git clone <repo> /opt/receipts && cd /opt/receipts && sudo bash scripts/setup-vultr.sh
+#   git clone <repo> /opt/witness && cd /opt/witness && sudo bash scripts/setup-vultr.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,10 +24,10 @@ if [ ! -f .env ]; then
   echo "   Edit .env and set VULTR_INFERENCE_API_KEY and PLANNER_MODEL, then re-run this script."
 fi
 set -a; . ./.env; set +a
-mkdir -p "${DATA_DIR:-/opt/receipts/data}/artifacts"
+mkdir -p "${DATA_DIR:-/opt/witness/data}/artifacts"
 
 echo "==> Build sandbox image"
-docker build -t receipts-runner:latest runner
+docker build -t witness-runner:latest runner
 
 echo "==> Start control plane"
 docker compose up -d --build
@@ -42,4 +42,4 @@ iptables -C INPUT -s 172.30.0.0/24 -j DROP 2>/dev/null || iptables -I INPUT 1 -s
 
 echo "==> Smoke test"
 sleep 3
-curl -fsS localhost/api/health && echo && echo "Receipts is up on http://$(curl -fsS ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')/"
+curl -fsS localhost/api/health && echo && echo "Witness is up on http://$(curl -fsS ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')/"

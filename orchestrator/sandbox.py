@@ -36,7 +36,7 @@ def sandbox_flags(name: str, out_dir_host: str) -> list[str]:
         "--ulimit", "nofile=2048:2048",
         "--user", "1001:1001",
         "-v", f"{out_dir_host}:/out:rw",
-        "--label", "app=receipts-sandbox",
+        "--label", "app=witness-sandbox",
     ]
     if config.SANDBOX_RUNTIME:
         flags += ["--runtime", config.SANDBOX_RUNTIME]
@@ -111,7 +111,7 @@ async def run_capture(url: str, allow: list[str], run_id: str, step_id: str) -> 
     """Visit one URL in a fresh sandbox. Returns untrusted page evidence + trusted
     containment facts (proxy log, exit status, destruction check, hashes)."""
     token = secrets.token_urlsafe(18)
-    name = f"rcpt-{step_id}"
+    name = f"wtn-{step_id}"
     out_local = Path(config.ARTIFACTS_DIR) / run_id / step_id
     out_local.mkdir(parents=True, exist_ok=True)
     os.chmod(out_local, 0o777)  # writable by the sandbox's uid 1001 only for this step

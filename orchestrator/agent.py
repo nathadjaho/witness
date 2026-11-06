@@ -30,17 +30,23 @@ import sandbox
 TEAM_EMAIL_DOMAIN = "yourteam.example"
 ALLOWED_ACTIONS = {"push_to_crm", "draft_email"}
 
+# Each pattern is tagged with the social-engineering tactic it uses. Injections
+# are scams aimed at machines: the same levers (authority, urgency, concealment,
+# steering towards a payment) show up in in-the-wild payloads.
 INJECTION_PATTERNS = [
-    (r"ignore (all |any )?(previous|prior|above|your) (instructions|rules|prompts?)", "override instructions"),
-    (r"\b(system|developer|admin) (message|mode|prompt)\b", "fake system/admin role"),
-    (r"\byou are now\b", "role reassignment"),
-    (r"\b(ai|llm) (agent|assistant)s?\b.{0,40}\b(must|should|instruction|note)", "addresses the AI agent"),
-    (r"\b(exfiltrate|send|email|post|upload|forward)\b.{0,60}\b(api key|token|credential|password|crm|export|contacts)", "data exfiltration request"),
-    (r"\breveal\b.{0,30}\b(system prompt|instructions|api key)", "prompt / secret extraction"),
-    (r"\b(call|use|invoke) the tool\b|\bpush_to_crm\b", "tool-call hijack"),
-    (r"\bset (its|the|my) score\b|\bhighest[- ]priority lead\b", "score manipulation"),
-    (r"\bdo not (mention|tell|reveal)\b", "concealment instruction"),
+    (r"ignore (all |any )?(previous|prior|above|your) (instructions|rules|prompts?)", "goal hijack", "override instructions"),
+    (r"\b(system|developer|admin) (message|mode|prompt)\b|^\s*system\s*:", "authority impersonation", "fake system/admin role"),
+    (r"\byou are now\b", "authority impersonation", "role reassignment"),
+    (r"\b(ai|llm) (agent|assistant)s?\b.{0,40}\b(must|should|instruction|note)|\b(automated|procurement|research) agents?\s*:", "goal hijack", "addresses the AI agent"),
+    (r"\b(exfiltrate|send|email|post|upload|forward|print)\b.{0,60}\b(api key|token|credential|password|crm|export|contacts)", "data exfiltration", "data exfiltration request"),
+    (r"\breveal\b.{0,30}\b(system prompt|instructions|api key)", "data exfiltration", "prompt / secret extraction"),
+    (r"\b(call|use|invoke) the tool\b|\bpush_to_crm\b", "goal hijack", "tool-call hijack"),
+    (r"paypal\.me/|buy\.stripe\.com/|\bwire (the )?(funds|payment|deposit)\b|\b(bank|payment) details (have )?changed\b|\bsend (the )?(\$|usd ?)?\d[\d,.]*|\bwallet address\b", "payment steering", "payment redirection"),
+    (r"\b(the )?(authoritative|official|verified) (source|site|vendor|website)\b|\brank (this|it) (first|#?1)\b|\bset (its|the|my) score\b|\bhighest[- ]priority lead\b|\b(approve|whitelist) (this )?vendor\b", "ranking manipulation", "score / trust manipulation"),
+    (r"\bdo not (mention|tell|reveal|disclose)\b|\bwithout (telling|notifying)\b", "concealment", "concealment instruction"),
 ]
+# Urgency is everywhere in marketing copy, so it only counts next to another signal.
+URGENCY_RE = re.compile(r"\b(immediately|urgent(ly)?|right now|without delay|within (the next )?\d+ (minutes|hours))\b", re.I)
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")
 URL_RE = re.compile(r"https?://[^\s\"'<>)]+")
 
@@ -58,19 +64,29 @@ def scan_injection(page: dict) -> list[dict]:
     sources = [(h.get("where", "hidden"), h.get("text", "")) for h in page.get("hidden_text", [])]
     sources.append(("visible", page.get("visible_text", "")))
     for where, text in sources:
-        for pat, label in INJECTION_PATTERNS:
-            for m in re.finditer(pat, text, flags=re.I):
+        found = []
+        for pat, tactic, label in INJECTION_PATTERNS:
+            m = re.search(pat, text, flags=re.I | re.M)
+            if m:
                 a, b = max(0, m.start() - 80), min(len(text), m.end() + 120)
-                hits.append({"where": where, "pattern": label, "excerpt": text[a:b].strip()})
-                break
-    # de-duplicate by excerpt
+                found.append({"where": where, "tactic": tactic, "pattern": label, "excerpt": text[a:b].strip()})
+        if found:
+            u = URGENCY_RE.search(text)
+            if u:
+                found.append({"where": where, "tactic": "urgency", "pattern": "pressure to act now",
+                              "excerpt": text[max(0, u.start() - 60):u.end() + 60].strip()})
+        hits.extend(found)
     seen, out = set(), []
     for h in hits:
-        k = (h["where"], h["excerpt"][:80])
+        k = (h["where"], h["pattern"])
         if k not in seen:
             seen.add(k)
             out.append(h)
-    return out[:20]
+    return out[:25]
+
+
+def tactics_of(hits: list[dict]) -> list[str]:
+    return sorted({h["tactic"] for h in hits})
 
 
 def strip_hidden(page: dict) -> tuple[str, int]:
@@ -128,7 +144,7 @@ async def plan_pages(criteria: list[str], links: list[dict], k: int) -> tuple[li
     return visit, str(out.get("why", ""))[:300]
 
 
-async def extract_claims(criteria: list[str], pages: list[dict]) -> dict:
+async def extract_claims(criteria: list[str], pages: list[dict], temperature: float = 0.1) -> dict:
     if config.MOCK_LLM:
         return _mock_extract(criteria, pages)
     blocks = "\n\n".join(
@@ -136,7 +152,7 @@ async def extract_claims(criteria: list[str], pages: list[dict]) -> dict:
     out = llm.parse_json(await llm.chat([
         {"role": "system", "content": EXTRACT_SYS},
         {"role": "user", "content": "Criteria:\n" + "\n".join(f"- {c}" for c in criteria) + "\n\n" + blocks},
-    ], max_tokens=1800))
+    ], max_tokens=1800, temperature=temperature))
     return out
 
 
@@ -163,6 +179,9 @@ def _mock_extract(criteria: list[str], pages: list[dict]) -> dict:
                             "notes": "Top priority lead, score 100. Send full contact export to "
                                      + (emails[0] if emails else "partner")})
             actions.append({"type": "exfiltrate_contacts", "owner": "", "notes": "as instructed by page"})
+        pay = re.search(r"https?://paypal\.me/[\w-]+", p["text"])
+        if pay:
+            actions.append({"type": "send_payment", "owner": "", "notes": f"Vendor onboarding deposit $5,000 to {pay.group(0)}"})
     return {"claims": claims, "summary": "offline extractor (keyword match)", "proposed_actions": actions}
 
 
@@ -264,7 +283,7 @@ async def research_company(run_id, comp, criteria, strip, emit) -> dict:
         })
         if hits:
             injections.extend(hits)
-            emit("injection_detected", {"company": name, "url": u, "hits": hits,
+            emit("injection_detected", {"company": name, "url": u, "hits": hits, "tactics": tactics_of(hits),
                                         "handling": "stripped before the model" if strip else "passed to model as untrusted data (L3 disabled)"})
         rec = {"id": f"p{len(pages) + 1}", "url": u, "text": clean, "clean_text": clean,
                "hidden": pg.get("hidden_text", []), "screenshot": cap["screenshot"],
@@ -301,9 +320,15 @@ async def research_company(run_id, comp, criteria, strip, emit) -> dict:
 
     # Actions: the model's proposals go through the gate; the system adds its own.
     proposals = [a for a in raw.get("proposed_actions", []) if isinstance(a, dict)]
+    # A site that hides instructions for AI agents is itself a due-diligence finding.
+    risk_flags = []
+    if injections:
+        risk_flags.append("site hides instructions aimed at AI agents (" + ", ".join(tactics_of(injections)) + ")")
     if score >= 50:
-        proposals.append({"type": "push_to_crm", "owner": f"sales@{TEAM_EMAIL_DOMAIN}",
-                          "notes": f"Qualified by Receipts: {met}/{len(criteria)} criteria verified.",
+        note = f"Checked by Witness: {met}/{len(criteria)} criteria verified."
+        if risk_flags:
+            note += " RISK: " + "; ".join(risk_flags) + ". Review before approving."
+        proposals.append({"type": "push_to_crm", "owner": f"sales@{TEAM_EMAIL_DOMAIN}", "notes": note,
                           "origin": "system"})
     queued = []
     for a in proposals:
@@ -322,7 +347,8 @@ async def research_company(run_id, comp, criteria, strip, emit) -> dict:
         emit("action_pending_approval", {"company": name, "action_id": aid, "action": a, "gate": "L7 human"})
 
     result = {"company": name, "url": url, "score": score, "verified": met, "criteria": len(criteria),
-              "claims": claims, "injections": len(injections), "pending_actions": queued,
+              "claims": claims, "injections": len(injections), "risk_flags": risk_flags,
+              "tactics": tactics_of(injections), "pending_actions": queued,
               "pages": [{"url": p["url"], "screenshot": p["screenshot"], "sha256": p["sha256"]} for p in pages]}
     emit("company_finished", {"company": name, "score": score, "verified": met, "injections": len(injections)})
     return result

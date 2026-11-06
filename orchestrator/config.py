@@ -9,9 +9,9 @@ VISION_MODEL = os.environ.get("VISION_MODEL", "")        # optional: screenshot 
 MOCK_LLM = os.environ.get("MOCK_LLM", "0") == "1" or not INFERENCE_API_KEY
 
 # --- Sandbox
-RUNNER_IMAGE = os.environ.get("RUNNER_IMAGE", "receipts-runner:latest")
+RUNNER_IMAGE = os.environ.get("RUNNER_IMAGE", "witness-runner:latest")
 SANDBOX_RUNTIME = os.environ.get("SANDBOX_RUNTIME", "")   # "runsc" when gVisor is installed
-SANDBOX_NETWORK = os.environ.get("SANDBOX_NETWORK", "receipts_sandbox")
+SANDBOX_NETWORK = os.environ.get("SANDBOX_NETWORK", "witness_sandbox")
 PROXY_URL_FOR_SANDBOX = os.environ.get("PROXY_URL_FOR_SANDBOX", "http://172.30.0.2:3128")
 PROXY_ADMIN_URL = os.environ.get("PROXY_ADMIN_URL", "http://egress-proxy:9090")
 PROXY_ADMIN_TOKEN = os.environ.get("PROXY_ADMIN_TOKEN", "")
@@ -25,7 +25,7 @@ SANDBOX_PIDS = os.environ.get("SANDBOX_PIDS", "256")
 # a container with the docker socket mounted).
 ARTIFACTS_DIR = os.environ.get("ARTIFACTS_DIR", "/data/artifacts")
 HOST_ARTIFACTS_DIR = os.environ.get("HOST_ARTIFACTS_DIR", ARTIFACTS_DIR)
-DB_PATH = os.environ.get("DB_PATH", "/data/receipts.db")
+DB_PATH = os.environ.get("DB_PATH", "/data/witness.db")
 
 # Hosts on the private network the sandbox may reach (the attack lab site).
 TRAP_SITE = os.environ.get("TRAP_SITE", "http://trap-site:8080")

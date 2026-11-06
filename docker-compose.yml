@@ -1,4 +1,4 @@
-# Receipts on a single Vultr Cloud Compute VM.
+# Witness on a single Vultr Cloud Compute VM.
 #
 #   internet ──► caddy ──► orchestrator ──(docker.sock)──► sandbox containers (spawned per page)
 #                              │                                   │
@@ -8,7 +8,7 @@
 #                              │
 #                              ▼
 #                         internet / trap-site (allowlisted per job)
-name: receipts
+name: witness
 
 services:
   orchestrator:
@@ -16,16 +16,16 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      ARTIFACTS_DIR: ${DATA_DIR:-/opt/receipts/data}/artifacts
-      HOST_ARTIFACTS_DIR: ${DATA_DIR:-/opt/receipts/data}/artifacts
-      DB_PATH: ${DATA_DIR:-/opt/receipts/data}/receipts.db
+      ARTIFACTS_DIR: ${DATA_DIR:-/opt/witness/data}/artifacts
+      HOST_ARTIFACTS_DIR: ${DATA_DIR:-/opt/witness/data}/artifacts
+      DB_PATH: ${DATA_DIR:-/opt/witness/data}/witness.db
       PROXY_ADMIN_URL: http://egress-proxy:9090
       PROXY_URL_FOR_SANDBOX: http://172.30.0.2:3128
-      SANDBOX_NETWORK: receipts_sandbox
+      SANDBOX_NETWORK: witness_sandbox
       TRAP_SITE: http://trap-site:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${DATA_DIR:-/opt/receipts/data}:${DATA_DIR:-/opt/receipts/data}
+      - ${DATA_DIR:-/opt/witness/data}:${DATA_DIR:-/opt/witness/data}
     networks: [control, public]
     depends_on: [egress-proxy, trap-site]
 
@@ -60,7 +60,7 @@ services:
 
 networks:
   sandbox:
-    name: receipts_sandbox
+    name: witness_sandbox
     internal: true
     ipam: {config: [{subnet: 172.30.0.0/24}]}
   control: {internal: true}

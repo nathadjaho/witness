@@ -1,5 +1,5 @@
 """
-Receipts sandbox runner — runs inside a throwaway container, one page per container.
+Witness sandbox runner — runs inside a throwaway container, one page per container.
 
 Input  : one JSON object on stdin  {"url": str, "proxy": str, "token": str, "timeout_s": int}
 Output : one JSON object on stdout (last line) + /out/shot.png
@@ -62,6 +62,9 @@ HIDDEN_TEXT_JS = r"""
   document.querySelectorAll('img[alt],[title],meta[name="description"],meta[content]').forEach(e => {
     push('attr:' + e.tagName.toLowerCase(), e.getAttribute('alt') || e.getAttribute('title') || e.getAttribute('content'));
   });
+  // Machine-only channels: structured data is a documented in-the-wild injection carrier.
+  document.querySelectorAll('script[type="application/ld+json"]').forEach(e => push('json-ld', e.textContent));
+  document.querySelectorAll('noscript, template').forEach(e => push('attr:' + e.tagName.toLowerCase(), e.textContent));
   const cw = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT);
   while (cw.nextNode()) push('html-comment', cw.currentNode.textContent);
   return out.slice(0, 200);

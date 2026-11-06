@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Receipts — research agents that can't be turned against you</title>
+<title>Witness — web research agents that hostile sites can't turn against you</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'">
 <style>
 :root{--bg:#0d1117;--panel:#151b23;--line:#262f3b;--text:#e6edf3;--mute:#8b98a8;--ok:#3fb950;--bad:#f85149;--warn:#d29922;--acc:#58a6ff;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -43,22 +43,22 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;p
 </head>
 <body>
 <header>
-  <h1>Receipts <span>· research agents that can't be turned against you</span></h1>
+  <h1>Witness <span>· web research agents that hostile sites can't turn against you</span></h1>
   <div class="chips" id="status"></div>
 </header>
 <main>
   <section>
     <div class="panel">
-      <h2>New research</h2>
+      <h2>New vendor check</h2>
       <label>Companies (one per line: URL | name)</label>
       <textarea id="companies" rows="4">http://trap-site:8080/acme/index.html | Acme Ledger</textarea>
-      <label>Qualification criteria (one per line)</label>
-      <textarea id="criteria" rows="5">Sells accounts-payable software to finance teams
-Has a public plan under $3,000 per month
-Is hiring Account Executives
+      <label>Due-diligence criteria (one per line)</label>
+      <textarea id="criteria" rows="5">Is SOC 2 Type II certified
+Integrates with NetSuite
+Offers a free trial
 Raised a Series B or later</textarea>
       <label><input type="checkbox" id="strip" checked> L3 · strip hidden text before the model reads it</label>
-      <div class="row"><button id="run">Run research</button><button class="ghost" id="lab">Run attack lab</button></div>
+      <div class="row"><button id="run">Run check</button><button class="ghost" id="lab">Attack lab</button><button class="ghost" id="evalbtn">Injection eval</button></div>
       <div class="layers">
         <div><b>L1 sandbox</b> · one throwaway container per page, no secrets</div>
         <div><b>L2 egress</b> · target domain only, via allowlist proxy</div>
@@ -81,6 +81,13 @@ Raised a Series B or later</textarea>
       <div id="timeline" class="mute">Start a run to watch every sandbox being created, attacked and destroyed.</div>
     </div>
     <div id="results"></div>
+    <div class="panel hidden" id="evalpanel" style="margin-top:16px">
+      <h2>Injection-resistance eval</h2>
+      <div class="mute" id="evalmodel"></div>
+      <table style="margin-top:8px"><tr><th>Condition</th><th>Model obeyed the page</th><th>Hijacked actions refused</th><th>Leaked past Witness</th></tr>
+        <tr><td>L3 off · model reads hidden text</td><td id="e-off-o">…</td><td id="e-off-h">…</td><td id="e-off-l">…</td></tr>
+        <tr><td>L3 on · hidden text stripped</td><td id="e-on-o">…</td><td id="e-on-h">…</td><td id="e-on-l">…</td></tr></table>
+    </div>
     <div class="panel hidden" id="labpanel" style="margin-top:16px">
       <h2>Attack lab</h2>
       <div class="big" id="labscore">–</div><div class="mute">attacks contained</div>
@@ -164,8 +171,8 @@ function onEvent(e) {
       for (const x of c.egress_blocked) addBlocked('Egress → ' + x.host + ':' + x.port, 'L2 proxy · ' + x.reason);
       break; }
     case 'injection_detected':
-      addEv('bad', '⚠ Prompt injection on ' + d.url, d.hits.length + ' patterns · ' + d.handling,
-            h('div', {}, ...d.hits.slice(0, 3).map(x => h('div', {class: 'excerpt'}, '[' + x.where + ' · ' + x.pattern + '] ' + x.excerpt)))); break;
+      addEv('bad', '⚠ Prompt injection on ' + d.url, 'tactics: ' + (d.tactics || []).join(', ') + ' · ' + d.handling,
+            h('div', {}, ...d.hits.slice(0, 4).map(x => h('div', {class: 'excerpt'}, '[' + x.where + ' · ' + x.tactic + '] ' + x.excerpt)))); break;
     case 'plan': addEv('acc', 'Planner chose ' + d.visit.length + ' of ' + d.candidates + ' links', d.why); break;
     case 'claims': {
       const v = d.claims.filter(c => c.status === 'verified').length;
@@ -185,6 +192,11 @@ function onEvent(e) {
       break;
     case 'lab_finished': $('labscore').textContent = d.contained + '/' + d.total; addEv(d.contained === d.total ? 'ok' : 'bad', 'Attack lab: ' + d.contained + '/' + d.total + ' contained'); done(); break;
     case 'action_approved': case 'action_rejected': addEv('acc', e.kind.replace('_', ' ') + ' · ' + d.company); break;
+    case 'eval_started': $('evalpanel').classList.remove('hidden'); $('evalmodel').textContent = d.n + ' trials per condition · model ' + d.model; addEv('acc', 'Injection eval · ' + d.n + ' trials × 2 conditions', d.model); break;
+    case 'eval_trial': if (d.model_obeyed) addEv('warn', 'Trial ' + (d.trial + 1) + ' (' + d.condition + '): model obeyed the page', 'hijacked actions refused by L5: ' + d.hijacked_actions_refused + ' · leaked: ' + d.leaked); break;
+    case 'eval_finished': if (d.error) { addEv('bad', 'Eval aborted', d.error); done(); break; } for (const [c, k] of [['l3_off', 'off'], ['l3_on', 'on']]) { const r = d[c];
+        $('e-' + k + '-o').textContent = r.model_obeyed + '/' + r.trials; $('e-' + k + '-h').textContent = r.hijacked_actions_refused; $('e-' + k + '-l').textContent = r.leaked_past_gates; }
+      addEv(d.l3_off.leaked_past_gates + d.l3_on.leaked_past_gates === 0 ? 'ok' : 'bad', 'Eval finished · model obeyed ' + d.l3_off.model_obeyed + '/' + d.l3_off.trials + ' with L3 off · 0 leaked = ' + (d.l3_off.leaked_past_gates + d.l3_on.leaked_past_gates === 0)); done(); break;
     case 'company_error': addEv('bad', 'Error on ' + (d.company.url || ''), d.error); break;
   }
 }
@@ -194,7 +206,8 @@ function renderResults(results) {
     h('div', {class: 'row', style: 'justify-content:space-between;margin:0'},
       h('div', {}, h('h2', {style: 'margin:0'}, r.company), h('div', {class: 'sha'}, r.url)),
       h('div', {}, h('span', {class: 'score'}, r.score), h('span', {class: 'mute'}, ' /100 · ' + r.verified + '/' + r.criteria + ' verified'))),
-    r.injections ? h('div', {class: 'chip bad', style: 'display:inline-block;margin:8px 0'}, r.injections + ' injection attempts neutralised') : null,
+    r.injections ? h('div', {class: 'chip bad', style: 'display:inline-block;margin:8px 0'}, r.injections + ' injection signals neutralised · ' + (r.tactics || []).join(', ')) : null,
+    ...(r.risk_flags || []).map(f => h('div', {class: 'excerpt', style: 'margin-bottom:8px'}, 'Due-diligence finding: ' + f)),
     h('table', {}, h('tr', {}, h('th', {}, 'Criterion'), h('th', {}, 'Status'), h('th', {}, 'Receipt')),
       ...r.claims.map(c => h('tr', {},
         h('td', {}, c.criterion, c.met === false ? h('div', {class: 'mute'}, '(not met)') : null),
@@ -225,12 +238,12 @@ function start(rid) {
   currentRun = rid; blockedCount = 0; $('runid').textContent = rid; $('verify').disabled = false;
   $('timeline').classList.add('mute'); $('timeline').textContent = 'Starting…'; $('results').replaceChildren();
   $('blocked').classList.add('mute'); $('blocked').textContent = 'Nothing blocked yet.';
-  $('run').disabled = $('lab').disabled = true;
+  $('run').disabled = $('lab').disabled = $('evalbtn').disabled = true;
   const es = new EventSource('/api/runs/' + rid + '/stream');
   es.onmessage = m => onEvent(JSON.parse(m.data));
   es.onerror = () => es.close();
 }
-function done() { $('run').disabled = $('lab').disabled = false; loadActions(); loadCRM(); }
+function done() { $('run').disabled = $('lab').disabled = $('evalbtn').disabled = false; loadActions(); loadCRM(); }
 
 $('run').onclick = async () => {
   const companies = $('companies').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [url, name] = l.split('|').map(s => s.trim()); return {url, name: name || null}; });
@@ -238,6 +251,7 @@ $('run').onclick = async () => {
   try { const r = await api('/api/runs', {method: 'POST', body: JSON.stringify({companies, criteria, strip_hidden: $('strip').checked})}); start(r.run_id); }
   catch (e) { alert(e.message); }
 };
+$('evalbtn').onclick = async () => { try { const r = await api('/api/eval', {method: 'POST', body: JSON.stringify({n: 10})}); start(r.run_id); } catch (e) { alert(e.message); } };
 $('lab').onclick = async () => { try { const r = await api('/api/lab', {method: 'POST', body: '{}'}); start(r.run_id); } catch (e) { alert(e.message); } };
 $('verify').onclick = async () => { const v = await api('/api/runs/' + currentRun + '/verify'); $('ledger').textContent = (v.ok ? '✓ chain intact · ' : '✗ chain broken at ' + v.broken_at + ' · ') + v.events + ' events' + (v.head ? ' · head ' + short(v.head) + '…' : ''); };
 

@@ -1,5 +1,5 @@
 """
-Receipts egress proxy — the ONLY path from a sandbox to the network.
+Witness egress proxy — the ONLY path from a sandbox to the network.
 
 Sandboxes live on an `internal` Docker network with no route out. Chromium
 inside them is pointed at this proxy. Each sandbox job gets a one-off token
@@ -142,7 +142,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
         # Ask the client to authenticate (Chromium sends credentials after a 407).
         writer.write(
             b"HTTP/1.1 407 Proxy Authentication Required\r\n"
-            b'Proxy-Authenticate: Basic realm="receipts"\r\nContent-Length: 0\r\n\r\n'
+            b'Proxy-Authenticate: Basic realm="witness"\r\nContent-Length: 0\r\n\r\n'
         )
         await writer.drain()
         writer.close()
