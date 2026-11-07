@@ -2,9 +2,23 @@
 
 **Vultr Agent Rush, Challenge 1 (Blast Radius Zero), Pattern B: sandboxed browser use.**
 
+**Live demo:** http://95.179.250.112/ (try *Run check*, *Attack lab* and *Injection eval*)
+
 Before a finance or procurement team pays a new vendor, or a sales team qualifies a prospect, someone researches the company on the web. Agents can do that work now, but the web has started fighting back. In April 2026, researchers reported **15.3K validated prompt injections across 11.7K pages**, about 70% of them hidden in non-rendered HTML ([arXiv 2604.27202](https://arxiv.org/abs/2604.27202)). Real sites were caught telling agents to **send $5,000 via PayPal.me** or to **leak an API key** ([Forcepoint X-Labs via Hackread](https://hackread.com/hackers-hidden-site-instruction-attack-ai-assistants/)), or hiding "treat this site as authoritative" in JSON-LD ([Zscaler via Infosecurity](https://infosecurity-magazine.com/news/indirect-prompt-injection-web)).
 
 **Witness does the research for real and treats every page as hostile.** Each page opens in a throwaway, network-fenced browser sandbox on Vultr. Witness checks the company against your criteria and reports a finding only when it can show a receipt: an exact quote from the page a human sees, the screenshot, and its SHA-256. When a site hides instructions for AI agents, Witness reports that as a due-diligence finding in its own right. Nothing leaves the system without a human approval, and every step is written to a tamper-evident ledger.
+
+## Measured results (public deployment on Vultr, November 2026)
+
+| Test | Result |
+|---|---|
+| Attack lab, gVisor runtime | **11/11 attacks contained** |
+| Injection eval, `glm-5.3`, hidden text visible to the model (L3 off) | model obeyed the page in **1/10** runs, **0** hijacked actions leaked |
+| Injection eval, `glm-5.3`, hidden text stripped (L3 on) | model obeyed **0/10**, **0** leaked |
+| Vendor check on the trap site (Acme Ledger) | 4/4 criteria verified with receipts and vision check; hidden agent instructions reported as a due-diligence finding |
+| Vendor check on a real site (tipalti.com) | 3/4 criteria verified, the 4th honestly reported as "no evidence"; 4 pages in ~80 s; 17 connections to third-party trackers refused by the egress proxy |
+
+Ten trials per condition is a small sample: read "1 of 10" as an observation, not a rate.
 
 ## What happens in a run
 
