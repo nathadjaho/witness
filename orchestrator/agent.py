@@ -141,7 +141,19 @@ async def plan_pages(criteria: list[str], links: list[dict], k: int) -> tuple[li
     ]))
     allowed = {l["href"] for l in links}
     visit = [u for u in out.get("visit", []) if u in allowed][:k]  # model cannot invent URLs
-    return visit, str(out.get("why", ""))[:300]
+    why = str(out.get("why", ""))[:300]
+    # The model tends to pick too few pages. Use the remaining budget on the links whose
+    # text best matches the criteria, so a criterion is not missed just because a page was skipped.
+    if len(visit) < k:
+        words = {w for c in criteria for w in re.findall(r"[a-z0-9]{4,}", c.lower())}
+        words |= {"about", "company", "pricing", "careers", "security", "trust", "compliance", "customers"}
+        ranked = sorted((l for l in links if l["href"] not in visit),
+                        key=lambda l: -sum(w in (l["href"] + " " + l["text"]).lower() for w in words))
+        extra = [l["href"] for l in ranked if sum(w in (l["href"] + " " + l["text"]).lower() for w in words) > 0]
+        visit += extra[: k - len(visit)]
+        if extra:
+            why += " (+ keyword-matched pages to use the full page budget)"
+    return visit, why
 
 
 async def extract_claims(criteria: list[str], pages: list[dict], temperature: float = 0.1) -> dict:
