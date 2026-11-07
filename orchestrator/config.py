@@ -30,7 +30,11 @@ DB_PATH = os.environ.get("DB_PATH", "/data/witness.db")
 # Hosts on the private network the sandbox may reach (the attack lab site).
 TRAP_SITE = os.environ.get("TRAP_SITE", "http://trap-site:8080")
 
-MAX_COMPANIES = int(os.environ.get("MAX_COMPANIES", "8"))
+MAX_COMPANIES = int(os.environ.get("MAX_COMPANIES", "3"))
 MAX_PAGES_PER_COMPANY = int(os.environ.get("MAX_PAGES_PER_COMPANY", "4"))
 MAX_CONCURRENT_RUNS = int(os.environ.get("MAX_CONCURRENT_RUNS", "2"))
 REASONING_EFFORT = os.environ.get("REASONING_EFFORT", "low")  # "" to leave the model default
+# Public demo guard-rails: protect inference credits and avoid turning the VM into a crawler.
+RUNS_PER_IP_PER_HOUR = int(os.environ.get("RUNS_PER_IP_PER_HOUR", "8"))
+EVALS_PER_HOUR = int(os.environ.get("EVALS_PER_HOUR", "4"))
+RUNS_PER_DAY = int(os.environ.get("RUNS_PER_DAY", "300"))

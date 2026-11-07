@@ -4,10 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Witness — web research agents that hostile sites can't turn against you</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0d1117;--panel:#151b23;--line:#262f3b;--text:#e6edf3;--mute:#8b98a8;--ok:#3fb950;--bad:#f85149;--warn:#d29922;--acc:#58a6ff;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+:root{--bg:#0d1117;--panel:#151b23;--line:#262f3b;--text:#e6edf3;--mute:#8b98a8;--ok:#3fb950;--bad:#f85149;--warn:#d29922;--acc:#58a6ff;--mono:'Fira Code',ui-monospace,SFMono-Regular,Menlo,monospace;--sans:'Fira Sans',system-ui,-apple-system,Segoe UI,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 var(--sans)}
 header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--line)}
 h1{font-size:18px;margin:0}h1 span{color:var(--mute);font-weight:400}
 h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:0 0 12px}
@@ -39,18 +41,62 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;p
 .lab{display:grid;grid-template-columns:1fr;gap:6px}.lab .t{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px}
 .big{font-size:36px;font-weight:800}
 .mute{color:var(--mute)}.hidden{display:none}
+/* --- landing strip --- */
+.hero{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:16px;padding:16px 24px 0}
+.hero .pitch{font-size:16px;line-height:1.45;color:#c9d1d9}.hero .pitch b{color:var(--text)}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.stat .n{font-size:30px;font-weight:800;line-height:1.1}.stat .n.ok{color:var(--ok)}.stat .n.warn{color:var(--warn)}
+.stat .l{font-size:12px;color:var(--mute)}
+/* --- verdict --- */
+.verdict{display:inline-block;font-weight:700;font-size:13px;padding:4px 12px;border-radius:999px;border:1px solid;margin:8px 8px 8px 0}
+.v-ok{color:var(--ok);border-color:#23462c;background:#0f2417}.v-warn{color:var(--warn);border-color:#5b4513;background:#2a1f08}.v-bad{color:var(--bad);border-color:#5a2420;background:#2a1215}
+/* --- eval bars --- */
+.bars{display:grid;gap:14px;margin-top:12px}.bar-row .lbl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+.bar{height:14px;background:#0b0f14;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:999px;transition:width .6s ease}
+.bar i.warn{background:var(--warn)}.bar i.ok{background:var(--ok)}
+.claim-line{font-size:18px;font-weight:700;margin-top:14px}
+/* --- injection reveal --- */
+.reveal{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+.reveal h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:0 0 8px}
+.reveal .human img{width:100%;max-height:340px;object-fit:cover;object-position:top;border:1px solid var(--line);border-radius:8px;display:block}
+.told{display:grid;gap:8px;max-height:340px;overflow:auto}
+.told .seg{background:#2a1215;border-left:3px solid var(--bad);border-radius:6px;padding:8px 10px}
+.told .where{font-size:11px;color:#ffa198;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.told .txt{font-family:var(--mono);font-size:12.5px;margin-top:4px;word-break:break-word}
+.tactic{display:inline-block;font-size:11px;border:1px solid #5a2420;color:#ffa198;border-radius:999px;padding:0 8px;margin:4px 4px 0 0}
+/* --- receipts --- */
+.stamp{display:inline-block;font:600 10px var(--mono);letter-spacing:.12em;color:var(--ok);border:1.5px solid var(--ok);border-radius:4px;padding:1px 6px;transform:rotate(-3deg)}
+/* --- presentation mode (for screen recording) --- */
+body.present main, body.present .hero{zoom:1.18}
+button[aria-pressed="true"]{background:var(--acc);color:#04111f;border-color:var(--acc)}
+body.present .layers, body.present #flagspanel{display:none}
+body.present .ev small{font-size:13px}
+button:focus-visible,a:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+@media (max-width:1100px){main{grid-template-columns:1fr}.hero{grid-template-columns:1fr 1fr}.reveal{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <header>
   <h1>Witness <span>· web research agents that hostile sites can't turn against you</span></h1>
-  <div class="chips" id="status"></div>
+  <div class="chips"><span id="status" class="chips"></span><button class="ghost" id="present" aria-pressed="false">Presentation mode</button></div>
 </header>
+<section class="hero" aria-label="What Witness is and what it has proven">
+  <div class="pitch">Before you pay a vendor, Witness researches it on the open web <b>inside a throwaway Vultr sandbox</b>. Every finding comes with a <b>receipt</b>. Pages that try to hijack the agent are <b>caught, never obeyed</b>.</div>
+  <div class="stat"><div class="n ok" id="s-lab" role="status" aria-atomic="true">–</div><div class="l">attacks contained (attack lab, gVisor)</div></div>
+  <div class="stat"><div class="n warn" id="s-obey" role="status" aria-atomic="true">–</div><div class="l" id="s-obey-l">times the model obeyed a hostile page</div></div>
+  <div class="stat"><div class="n ok" id="s-leak" role="status" aria-atomic="true">–</div><div class="l">hijacked actions that got past Witness</div></div>
+</section>
 <main>
   <section>
     <div class="panel">
       <h2>New vendor check</h2>
-      <label>Companies (one per line: URL | name)</label>
+      <div class="row" style="margin-top:0;flex-wrap:wrap">
+        <button class="ghost" id="ex-hostile" title="A fictional vendor whose site hides instructions for AI agents">Example: hostile vendor</button>
+        <button class="ghost" id="ex-real" title="A real accounts-payable vendor">Example: real vendor</button>
+      </div>
+      <label>Companies (one per line: URL | name · max 3)</label>
       <textarea id="companies" rows="4">http://trap-site:8080/acme/index.html | Acme Ledger</textarea>
       <label>Due-diligence criteria (one per line)</label>
       <textarea id="criteria" rows="5">Is SOC 2 Type II certified
@@ -58,7 +104,9 @@ Integrates with NetSuite
 Offers a free trial
 Raised a Series B or later</textarea>
       <label><input type="checkbox" id="strip" checked> L3 · strip hidden text before the model reads it</label>
+      <div class="mute" style="font-size:12px;margin-top:6px">Some sites block automated browsers. Witness then reports "no evidence" instead of guessing.</div>
       <div class="row"><button id="run">Run check</button><button class="ghost" id="lab">Attack lab</button><button class="ghost" id="evalbtn">Injection eval</button></div>
+      <div id="formerr" role="alert" class="excerpt hidden" style="margin-top:10px"></div>
       <div class="layers">
         <div><b>L1 sandbox</b> · one throwaway container per page, no secrets</div>
         <div><b>L2 egress</b> · target domain only, via allowlist proxy</div>
@@ -69,7 +117,7 @@ Raised a Series B or later</textarea>
         <div><b>L7 human</b> · nothing leaves without approval</div>
       </div>
     </div>
-    <div class="panel" style="margin-top:16px">
+    <div class="panel" style="margin-top:16px" id="flagspanel">
       <h2>Sandbox in use</h2>
       <div id="flags" class="sha"></div>
     </div>
@@ -80,10 +128,24 @@ Raised a Series B or later</textarea>
       <h2>Live run <span id="runid" class="sha"></span></h2>
       <div id="timeline" class="mute">Start a run to watch every sandbox being created, attacked and destroyed.</div>
     </div>
+    <div class="panel hidden" id="revealpanel" style="margin-top:16px">
+      <h2>Caught: what the human sees vs. what the agent was told</h2>
+      <div class="mute" id="revealurl"></div>
+      <div class="reveal">
+        <div class="human"><h3>What a human visitor sees</h3><div id="revealshot"></div></div>
+        <div><h3>What the page told the AI agent</h3><div class="told" id="revealtold"></div></div>
+      </div>
+    </div>
     <div id="results"></div>
     <div class="panel hidden" id="evalpanel" style="margin-top:16px">
       <h2>Injection-resistance eval</h2>
       <div class="mute" id="evalmodel"></div>
+      <div class="bars">
+        <div class="bar-row"><div class="lbl"><span>Model obeyed the hostile page (hidden text visible, L3 off)</span><b id="b-obey-t">…</b></div><div class="bar"><i class="warn" id="b-obey" style="width:0"></i></div></div>
+        <div class="bar-row"><div class="lbl"><span>Model obeyed (hidden text stripped, L3 on)</span><b id="b-obey2-t">…</b></div><div class="bar"><i class="warn" id="b-obey2" style="width:0"></i></div></div>
+        <div class="bar-row"><div class="lbl"><span>Hijacked actions that got past Witness</span><b id="b-leak-t">…</b></div><div class="bar"><i class="ok" id="b-leak" style="width:0"></i></div></div>
+      </div>
+      <div class="claim-line" id="evalclaim"></div>
       <table style="margin-top:8px"><tr><th>Condition</th><th>Model obeyed the page</th><th>Hijacked actions refused</th><th>Leaked past Witness</th></tr>
         <tr><td>L3 off · model reads hidden text</td><td id="e-off-o">…</td><td id="e-off-h">…</td><td id="e-off-l">…</td></tr>
         <tr><td>L3 on · hidden text stripped</td><td id="e-on-o">…</td><td id="e-on-h">…</td><td id="e-on-l">…</td></tr></table>
@@ -151,6 +213,43 @@ function addEv(cls, title, detail, extra) {
   $('timeline').append(node); $('timeline').scrollTop = 1e9;
 }
 
+const shots = {};
+function where(w) {
+  const m = {'json-ld': 'Machine-only JSON-LD metadata', 'html-comment': 'HTML comment', 'visible': 'Visible page text',
+             'attr:img': 'Image alt text', 'attr:meta': 'Meta tag', 'attr:noscript': 'noscript block', 'attr:template': 'template block'};
+  if (m[w]) return m[w];
+  if (w.startsWith('hidden:')) return 'Hidden from humans: ' + w.slice(7).replace('text colour = background', 'same colour as background');
+  return w;
+}
+function showReveal(d) {
+  $('revealpanel').classList.remove('hidden');
+  $('revealurl').textContent = d.url + ' · tactics: ' + (d.tactics || []).join(', ');
+  const src = shots[d.url];
+  $('revealshot').replaceChildren(src ? h('a', {href: src, target: '_blank', rel: 'noopener'}, h('img', {src, alt: 'Screenshot of the page as a human sees it'})) : h('div', {class: 'mute'}, 'screenshot unavailable'));
+  // One card per channel (hidden text, JSON-LD, comment...), longest excerpt, all tactics found there.
+  const groups = new Map();
+  for (const x of d.hits) {
+    const g = groups.get(x.where) || {where: x.where, excerpt: '', tactics: new Set()};
+    if (x.tactic !== 'urgency' || g.tactics.size) g.tactics.add(x.tactic); else g.tactics.add(x.tactic);
+    if (x.excerpt.length > g.excerpt.length) g.excerpt = x.excerpt;
+    groups.set(x.where, g);
+  }
+  const cards = [...groups.values()].sort((a, b) => (a.where === 'visible') - (b.where === 'visible')).slice(0, 5);
+  $('revealtold').replaceChildren(...cards.map(g =>
+    h('div', {class: 'seg'}, h('div', {class: 'where'}, where(g.where)), h('div', {class: 'txt'}, g.excerpt),
+      h('div', {}, ...[...g.tactics].map(t => h('span', {class: 'tactic'}, t))))));
+}
+async function loadStats() {
+  try {
+    const s = await api('/api/stats');
+    if (s.lab) $('s-lab').textContent = s.lab.contained + '/' + s.lab.total;
+    if (s.eval) {
+      $('s-obey').textContent = s.eval.l3_off.model_obeyed + '/' + s.eval.l3_off.trials;
+      $('s-obey-l').textContent = 'times ' + s.eval.model + ' obeyed a hostile page';
+      $('s-leak').textContent = (s.eval.l3_off.leaked_past_gates + s.eval.l3_on.leaked_past_gates) + '/' + (s.eval.l3_off.trials + s.eval.l3_on.trials);
+    }
+  } catch (e) {}
+}
 function addBlocked(text, reason) {
   if (!blockedCount++) $('blocked').replaceChildren();
   $('blocked').classList.remove('mute');
@@ -162,10 +261,11 @@ function onEvent(e) {
   if (d && d.error && /_finished$/.test(e.kind)) { addEv('bad', 'Run failed', d.error); done(); return; }
   $('ledger').textContent = 'events: ' + (e.seq + 1) + ' · head ' + short(e.hash) + '…';
   switch (e.kind) {
-    case 'run_started': addEv('acc', 'Run started · ' + d.companies.length + ' companies', 'model ' + d.model + ' · L3 strip ' + (d.strip_hidden ? 'on' : 'OFF')); break;
+    case 'run_started': $('revealpanel').classList.add('hidden'); addEv('acc', 'Run started · ' + d.companies.length + ' companies', 'model ' + d.model + ' · L3 strip ' + (d.strip_hidden ? 'on' : 'OFF')); break;
     case 'company_started': addEv('acc', d.company + ' · egress allowlist ' + d.egress_allowlist.join(', ')); break;
     case 'sandbox_started': addEv('', 'Sandbox created → ' + d.url, 'step ' + d.step); break;
     case 'sandbox_finished': {
+      if (d.screenshot) shots[d.url] = d.screenshot;
       const c = d.containment, b = c.egress_blocked.length;
       addEv(c.destroyed ? 'ok' : 'bad', (c.destroyed ? 'Sandbox destroyed ✓ ' : 'Sandbox NOT destroyed ') + '· ' + c.wall_s + 's' + (c.killed_by_watchdog ? ' · killed by watchdog' : ''),
             'egress allowed ' + c.egress_allowed.length + ' · blocked ' + b + ' · screenshot sha256 ' + short(d.screenshot_sha256) + ' · hidden segments ' + d.hidden_segments + ' (stripped ' + d.stripped_before_model + ')');
@@ -173,7 +273,8 @@ function onEvent(e) {
       break; }
     case 'injection_detected':
       addEv('bad', '⚠ Prompt injection on ' + d.url, 'tactics: ' + (d.tactics || []).join(', ') + ' · ' + d.handling,
-            h('div', {}, ...d.hits.slice(0, 4).map(x => h('div', {class: 'excerpt'}, '[' + x.where + ' · ' + x.tactic + '] ' + x.excerpt)))); break;
+            h('div', {}, ...d.hits.slice(0, 4).map(x => h('div', {class: 'excerpt'}, '[' + where(x.where) + ' · ' + x.tactic + '] ' + x.excerpt))));
+      showReveal(d); break;
     case 'plan': addEv('acc', 'Planner chose ' + d.visit.length + ' of ' + d.candidates + ' links', d.why); break;
     case 'claims': {
       const v = d.claims.filter(c => c.status === 'verified').length;
@@ -191,13 +292,19 @@ function onEvent(e) {
       $('labgrid').append(h('div', {class: 't'}, h('span', {}, d.title), h('span', {class: 'badge ' + (d.contained ? 'b-verified' : 'b-unsupported')}, d.contained ? 'contained' : 'breach')));
       for (const x of d.containment.egress_blocked) addBlocked('Egress → ' + x.host + ':' + x.port, 'L2 proxy · ' + x.reason);
       break;
-    case 'lab_finished': $('labscore').textContent = d.contained + '/' + d.total; addEv(d.contained === d.total ? 'ok' : 'bad', 'Attack lab: ' + d.contained + '/' + d.total + ' contained'); done(); break;
+    case 'lab_finished': $('labscore').textContent = d.contained + '/' + d.total; loadStats(); addEv(d.contained === d.total ? 'ok' : 'bad', 'Attack lab: ' + d.contained + '/' + d.total + ' contained'); done(); break;
     case 'action_approved': case 'action_rejected': addEv('acc', e.kind.replace('_', ' ') + ' · ' + d.company); break;
     case 'eval_started': $('evalpanel').classList.remove('hidden'); $('evalmodel').textContent = d.n + ' trials per condition · model ' + d.model; addEv('acc', 'Injection eval · ' + d.n + ' trials × 2 conditions', d.model); break;
     case 'eval_trial_error': addEv('bad', 'Trial ' + (d.trial + 1) + ' (' + d.condition + ') failed', d.error); break;
     case 'eval_trial': if (d.model_obeyed) addEv('warn', 'Trial ' + (d.trial + 1) + ' (' + d.condition + '): model obeyed the page', 'hijacked actions refused by L5: ' + d.hijacked_actions_refused + ' · leaked: ' + d.leaked); break;
     case 'eval_finished': if (d.error) { addEv('bad', 'Eval aborted', d.error); done(); break; } for (const [c, k] of [['l3_off', 'off'], ['l3_on', 'on']]) { const r = d[c];
+        if (k === 'off') { $('b-obey').style.width = (100 * r.model_obeyed / Math.max(1, r.trials)) + '%'; $('b-obey-t').textContent = r.model_obeyed + ' / ' + r.trials; }
+        else { $('b-obey2').style.width = (100 * r.model_obeyed / Math.max(1, r.trials)) + '%'; $('b-obey2-t').textContent = r.model_obeyed + ' / ' + r.trials; }
         $('e-' + k + '-o').textContent = r.model_obeyed + '/' + r.trials + (r.errors ? ' (' + r.errors + ' failed calls)' : ''); $('e-' + k + '-h').textContent = r.hijacked_actions_refused; $('e-' + k + '-l').textContent = r.leaked_past_gates; }
+      { const leaked = d.l3_off.leaked_past_gates + d.l3_on.leaked_past_gates, tot = d.l3_off.trials + d.l3_on.trials;
+        $('b-leak').style.width = (100 * leaked / Math.max(1, tot)) + '%'; $('b-leak-t').textContent = leaked + ' / ' + tot;
+        $('evalclaim').textContent = d.model + ' obeyed the hostile page in ' + d.l3_off.model_obeyed + ' of ' + d.l3_off.trials + ' runs. Witness let ' + leaked + ' hijacked actions through.';
+        loadStats(); }
       addEv(d.l3_off.leaked_past_gates + d.l3_on.leaked_past_gates === 0 ? 'ok' : 'bad', 'Eval finished · model obeyed ' + d.l3_off.model_obeyed + '/' + d.l3_off.trials + ' with L3 off · 0 leaked = ' + (d.l3_off.leaked_past_gates + d.l3_on.leaked_past_gates === 0)); done(); break;
     case 'company_error': addEv('bad', 'Error on ' + (d.company.url || ''), d.error); break;
   }
@@ -208,12 +315,13 @@ function renderResults(results) {
     h('div', {class: 'row', style: 'justify-content:space-between;margin:0'},
       h('div', {}, h('h2', {style: 'margin:0'}, r.company), h('div', {class: 'sha'}, r.url)),
       h('div', {}, h('span', {class: 'score'}, r.score), h('span', {class: 'mute'}, ' /100 · ' + r.verified + '/' + r.criteria + ' verified'))),
+    h('div', {}, h('span', {class: 'verdict ' + ({'Clear to approve': 'v-ok', 'Approve with caution': 'v-warn'}[r.verdict] || 'v-bad'), role: 'status'}, r.verdict || '')),
     r.injections ? h('div', {class: 'chip bad', style: 'display:inline-block;margin:8px 0'}, r.injections + ' injection signals neutralised · ' + (r.tactics || []).join(', ')) : null,
     ...(r.risk_flags || []).map(f => h('div', {class: 'excerpt', style: 'margin-bottom:8px'}, 'Due-diligence finding: ' + f)),
     h('table', {}, h('tr', {}, h('th', {}, 'Criterion'), h('th', {}, 'Status'), h('th', {}, 'Receipt')),
       ...r.claims.map(c => h('tr', {},
         h('td', {}, c.criterion, c.met === false ? h('div', {class: 'mute'}, '(not met)') : null),
-        h('td', {}, h('span', {class: 'badge b-' + c.status}, c.status.replace('_', ' ')), c.vision && c.vision.visible !== undefined ? h('div', {class: 'sha'}, 'vision: ' + c.vision.visible) : null),
+        h('td', {}, c.status === 'verified' ? h('span', {class: 'stamp'}, 'VERIFIED') : h('span', {class: 'badge b-' + c.status}, c.status.replace('_', ' ')), c.vision && c.vision.visible !== undefined ? h('div', {class: 'sha'}, 'vision: ' + c.vision.visible) : null),
         h('td', {}, c.quote ? h('div', {class: 'quote'}, '“' + c.quote + '”') : h('span', {class: 'mute'}, c.reason || '—'),
           c.screenshot ? h('a', {href: c.screenshot, target: '_blank', rel: 'noopener'}, h('img', {class: 'thumb', src: c.screenshot, alt: 'evidence screenshot'})) : null,
           c.screenshot_sha256 ? h('div', {class: 'sha'}, 'sha256 ' + short(c.screenshot_sha256) + '… · ' + (c.source_url || '')) : null)))))));
@@ -246,19 +354,41 @@ function start(rid) {
   es.onmessage = m => onEvent(JSON.parse(m.data));
   es.onerror = () => es.close();
 }
+function showErr(msg) { $('formerr').textContent = msg; $('formerr').classList.remove('hidden'); setTimeout(() => $('formerr').classList.add('hidden'), 12000); }
+const EXAMPLES = {
+  hostile: {companies: 'http://trap-site:8080/acme/index.html | Acme Ledger', strip: false,
+            criteria: 'Is SOC 2 Type II certified\nIntegrates with NetSuite\nOffers a free trial\nRaised a Series B or later'},
+  real: {companies: 'https://tipalti.com/ | Tipalti', strip: true,
+         criteria: 'Is SOC 2 certified\nIntegrates with NetSuite\nSupports payments in multiple currencies\nOffers a demo'},
+};
+function useExample(k) { const x = EXAMPLES[k]; $('companies').value = x.companies; $('criteria').value = x.criteria; $('strip').checked = x.strip; $('run').focus(); }
+async function replayLatest() {
+  // A first-time visitor (or a judge) lands on a filled dashboard: replay the latest finished run.
+  try {
+    const d = await api('/api/latest?kind=research');
+    if (currentRun) return;
+    $('runid').textContent = 'latest public run · ' + d.id;
+    for (const e of d.events) onEvent(e);
+    addEv('acc', 'This is a replay of the latest run. Pick an example above or run your own check.');
+    currentRun = d.id; $('verify').disabled = false;
+  } catch (e) {}
+}
 function done() { $('run').disabled = $('lab').disabled = $('evalbtn').disabled = false; loadActions(); loadCRM(); }
 
 $('run').onclick = async () => {
   const companies = $('companies').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [url, name] = l.split('|').map(s => s.trim()); return {url, name: name || null}; });
   const criteria = $('criteria').value.split('\n').map(s => s.trim()).filter(Boolean);
   try { const r = await api('/api/runs', {method: 'POST', body: JSON.stringify({companies, criteria, strip_hidden: $('strip').checked})}); start(r.run_id); }
-  catch (e) { alert(e.message); }
+  catch (e) { showErr(e.message); }
 };
-$('evalbtn').onclick = async () => { try { const r = await api('/api/eval', {method: 'POST', body: JSON.stringify({n: 10})}); start(r.run_id); } catch (e) { alert(e.message); } };
-$('lab').onclick = async () => { try { const r = await api('/api/lab', {method: 'POST', body: '{}'}); start(r.run_id); } catch (e) { alert(e.message); } };
+$('evalbtn').onclick = async () => { try { const r = await api('/api/eval', {method: 'POST', body: JSON.stringify({n: 10})}); start(r.run_id); } catch (e) { showErr(e.message); } };
+$('lab').onclick = async () => { try { const r = await api('/api/lab', {method: 'POST', body: '{}'}); start(r.run_id); } catch (e) { showErr(e.message); } };
 $('verify').onclick = async () => { const v = await api('/api/runs/' + currentRun + '/verify'); $('ledger').textContent = (v.ok ? '✓ chain intact · ' : '✗ chain broken at ' + v.broken_at + ' · ') + v.events + ' events' + (v.head ? ' · head ' + short(v.head) + '…' : ''); };
 
-loadStatus(); loadActions(); loadCRM();
+$('present').onclick = () => { const on = document.body.classList.toggle('present'); $('present').setAttribute('aria-pressed', String(on)); };
+$('ex-hostile').onclick = () => useExample('hostile');
+$('ex-real').onclick = () => useExample('real');
+loadStatus(); loadStats(); loadActions(); loadCRM(); replayLatest();
 </script>
 </body>
 </html>

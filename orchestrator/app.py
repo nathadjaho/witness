@@ -7,7 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -45,7 +45,7 @@ class LabRequest(BaseModel):
 
 
 class EvalRequest(BaseModel):
-    n: int = Field(10, ge=1, le=50)
+    n: int = Field(10, ge=1, le=10)
 
 
 def _guarded(rid: str, coro_fn, finish_kind: str):
@@ -63,6 +63,28 @@ def _guarded(rid: str, coro_fn, finish_kind: str):
         ledger.db().execute("UPDATE runs SET status=?, result=? WHERE id=?", (status, json.dumps(res), rid))
         ledger.db().commit()
     return go()
+
+
+_HITS: list[tuple[float, str, str]] = []  # (time, ip, kind)
+
+
+def _client_ip(request: Request) -> str:
+    # Behind Caddy: the first X-Forwarded-For entry is the visitor.
+    fwd = request.headers.get("x-forwarded-for", "")
+    return fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
+
+
+def _rate_guard(request: Request, kind: str) -> None:
+    now = time.time()
+    _HITS[:] = [h for h in _HITS if now - h[0] < 86400]
+    ip = _client_ip(request)
+    if sum(1 for h in _HITS if now - h[0] < 3600 and h[1] == ip) >= config.RUNS_PER_IP_PER_HOUR:
+        raise HTTPException(429, "Demo limit reached for your address. Please try again within the hour.")
+    if kind == "eval" and sum(1 for h in _HITS if now - h[0] < 3600 and h[2] == "eval") >= config.EVALS_PER_HOUR:
+        raise HTTPException(429, "The injection eval is limited to a few runs per hour on the public demo. The latest result is shown above.")
+    if len(_HITS) >= config.RUNS_PER_DAY:
+        raise HTTPException(429, "The public demo reached its daily limit. The latest results remain visible.")
+    _HITS.append((now, ip, kind))
 
 
 def _busy_guard() -> None:
@@ -95,9 +117,11 @@ def health():
 
 
 @app.post("/api/runs")
-async def create_run(req: RunRequest):
+async def create_run(req: RunRequest, request: Request):
     for c in req.companies:
         _validate_url(c.url)
+    _busy_guard()
+    _rate_guard(request, "research")
     body = req.model_dump()
     rid = _new_run("research", body)
     TASKS[rid] = asyncio.create_task(_guarded(rid, lambda: agent.research_run(rid, body), "run_finished"))
@@ -105,17 +129,56 @@ async def create_run(req: RunRequest):
 
 
 @app.post("/api/lab")
-async def create_lab(req: LabRequest):
+async def create_lab(req: LabRequest, request: Request):
+    _busy_guard()
+    _rate_guard(request, "lab")
     rid = _new_run("lab", req.model_dump())
     TASKS[rid] = asyncio.create_task(_guarded(rid, lambda: attacks.run_lab(rid, req.only), "lab_finished"))
     return {"run_id": rid}
 
 
 @app.post("/api/eval")
-async def create_eval(req: EvalRequest):
+async def create_eval(req: EvalRequest, request: Request):
+    _busy_guard()
+    _rate_guard(request, "eval")
     rid = _new_run("eval", req.model_dump())
     TASKS[rid] = asyncio.create_task(_guarded(rid, lambda: evals.run_eval(rid, req.n), "eval_finished"))
     return {"run_id": rid}
+
+
+@app.get("/api/latest")
+def latest(kind: str = "research"):
+    """Most recent finished run of a kind, so a first-time visitor sees a filled dashboard."""
+    fallback = None
+    for r in ledger.db().execute("SELECT id, request, result FROM runs WHERE status='done' ORDER BY created DESC LIMIT 100"):
+        if json.loads(r["request"]).get("kind") != kind:
+            continue
+        fallback = fallback or r["id"]
+        res = json.loads(r["result"]) if r["result"] else None
+        # Prefer the latest run that actually verified something, so one failed visitor run
+        # (e.g. a bot-protected site) does not become everyone's first impression.
+        if isinstance(res, list) and any(c.get("verified", 0) > 0 for c in res):
+            return get_run(r["id"])
+    if fallback:
+        return get_run(fallback)
+    raise HTTPException(404, "no finished run yet")
+
+
+@app.get("/api/stats")
+def stats():
+    """Latest measured numbers, for the landing strip. Read from finished runs only."""
+    out = {"lab": None, "eval": None, "checks": 0}
+    rows = ledger.db().execute("SELECT request, result FROM runs WHERE status='done' ORDER BY created DESC LIMIT 200").fetchall()
+    for r in rows:
+        kind = json.loads(r["request"]).get("kind")
+        res = json.loads(r["result"]) if r["result"] else None
+        if kind == "research":
+            out["checks"] += 1
+        elif kind == "lab" and out["lab"] is None and res and res.get("total"):
+            out["lab"] = {"contained": res["contained"], "total": res["total"]}
+        elif kind == "eval" and out["eval"] is None and res and res.get("l3_off", {}).get("trials"):
+            out["eval"] = {"model": res["model"], "l3_off": res["l3_off"], "l3_on": res["l3_on"]}
+    return out
 
 
 @app.get("/api/runs")
@@ -156,7 +219,7 @@ def verify(rid: str):
 
 @app.get("/api/actions")
 def actions(status: str = "pending"):
-    rows = ledger.db().execute("SELECT * FROM actions WHERE status=? ORDER BY created DESC", (status,)).fetchall()
+    rows = ledger.db().execute("SELECT * FROM actions WHERE status=? ORDER BY created DESC LIMIT 6", (status,)).fetchall()
     return [{"id": r["id"], "run_id": r["run_id"], "kind": r["kind"], "status": r["status"],
              "payload": json.loads(r["payload"])} for r in rows]
 

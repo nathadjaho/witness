@@ -349,7 +349,13 @@ async def research_company(run_id, comp, criteria, strip, emit) -> dict:
         queued.append(aid)
         emit("action_pending_approval", {"company": name, "action_id": aid, "action": a, "gate": "L7 human"})
 
-    result = {"company": name, "url": url, "score": score, "verified": met, "criteria": len(criteria),
+    if score < 50:
+        verdict = "Do not approve"
+    elif risk_flags or any(c["status"] in ("unsupported", "rejected_hidden") for c in claims):
+        verdict = "Approve with caution"
+    else:
+        verdict = "Clear to approve"
+    result = {"company": name, "url": url, "score": score, "verdict": verdict, "verified": met, "criteria": len(criteria),
               "claims": claims, "injections": len(injections), "risk_flags": risk_flags,
               "tactics": tactics_of(injections), "pending_actions": queued,
               "pages": [{"url": p["url"], "screenshot": p["screenshot"], "sha256": p["sha256"]} for p in pages]}
